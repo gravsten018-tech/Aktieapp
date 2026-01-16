@@ -1,4 +1,6 @@
-pip install -i https://pypi.anaconda.org/ranaroussi/simple finance
+sudo apt get update
+sudo apt install python3-pip
+pip install yfinance
 import streamlit as st
 import yfinance as yf
 import pandas as pd
