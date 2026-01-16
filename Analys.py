@@ -1,134 +1,57 @@
-sudo apt get update
-sudo apt install python3-pip
-pip install yfinance
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from datetime import date
+import matplotlib.pyplot as plt
 
-# ---------------------------
-# App config
-# ---------------------------
-st.set_page_config(
-    page_title="Johans Aktier",
-    page_icon="📈",
-    layout="wide"
-)
+st.set_page_config(page_title="Stock Application", layout="wide")
 
-st.title("📈 Johans Aktier")
-st.markdown("Visualisera och analysera aktier med realtidsdata från Yahoo Finance.")
+st.title("📈 Stock Market Application")
 
-# ---------------------------
-# Sidebar inputs
-# ---------------------------
-st.sidebar.header("Inställningar")
+# Sidebar
+st.sidebar.header("Stock Settings")
 
-ticker = st.sidebar.text_input("Aktieticker", value="AAPL")
-start_date = st.sidebar.date_input("Startdatum", date(2022, 1, 1))
-end_date = st.sidebar.date_input("Slutdatum", date.today())
+ticker = st.sidebar.text_input("Stock Ticker", value="AAPL")
+start_date = st.sidebar.date_input("Start Date", pd.to_datetime("2022-01-01"))
+end_date = st.sidebar.date_input("End Date", pd.to_datetime("today"))
 
-show_ma20 = st.sidebar.checkbox("Visa MA20", True)
-show_ma50 = st.sidebar.checkbox("Visa MA50", True)
+ma_short = st.sidebar.slider("Short Moving Average", 5, 50, 20)
+ma_long = st.sidebar.slider("Long Moving Average", 50, 200, 100)
 
-# ---------------------------
-# Load data
-# ---------------------------
+# Fetch data
 @st.cache_data
 def load_data(ticker, start, end):
-    data = yf.download(ticker, start=start, end=end)
-    return data
+    return yf.download(ticker, start=start, end=end)
 
-if ticker:
-    data = load_data(ticker, start_date, end_date)
+data = load_data(ticker, start_date, end_date)
 
-    if data.empty:
-        st.error("Ingen data hittades. Kontrollera tickern.")
-        st.stop()
+if data.empty:
+    st.error("No data found. Check the ticker symbol.")
+    st.stop()
 
-    # ---------------------------
-    # Calculations
-    # ---------------------------
-    data["MA20"] = data["Close"].rolling(20).mean()
-    data["MA50"] = data["Close"].rolling(50).mean()
-    data["Daily Return"] = data["Close"].pct_change()
+# Indicators
+data["MA_Short"] = data["Close"].rolling(ma_short).mean()
+data["MA_Long"] = data["Close"].rolling(ma_long).mean()
 
-    # ---------------------------
-    # Metrics
-    # ---------------------------
-    col1, col2, col3, col4 = st.columns(4)
+# Price Chart
+st.subheader(f"{ticker} Price Chart")
 
-    latest_price = data["Close"].iloc[-1]
-    prev_price = data["Close"].iloc[-2]
-    daily_change = (latest_price - prev_price) / prev_price * 100
-    volatility = data["Daily Return"].std() * np.sqrt(252) * 100
+fig, ax = plt.subplots(figsize=(12, 5))
+ax.plot(data.index, data["Close"], label="Close Price", linewidth=2)
+ax.plot(data.index, data["MA_Short"], label=f"MA {ma_short}")
+ax.plot(data.index, data["MA_Long"], label=f"MA {ma_long}")
+ax.set_xlabel("Date")
+ax.set_ylabel("Price")
+ax.legend()
+st.pyplot(fig)
 
-    col1.metric("Senaste pris", f"${latest_price:.2f}")
-    col2.metric("Daglig förändring", f"{daily_change:.2f}%", delta=f"{daily_change:.2f}%")
-    col3.metric("Volatilitet (årlig)", f"{volatility:.2f}%")
-    col4.metric("Antal handelsdagar", len(data))
+# Volume Chart
+st.subheader("Volume")
 
-    # ---------------------------
-    # Candlestick chart
-    # ---------------------------
-    fig = go.Figure()
+fig2, ax2 = plt.subplots(figsize=(12, 3))
+ax2.bar(data.index, data["Volume"], color="gray")
+ax2.set_ylabel("Volume")
+st.pyplot(fig2)
 
-    fig.add_trace(go.Candlestick(
-        x=data.index,
-        open=data["Open"],
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"],
-        name="Pris"
-    ))
-
-    if show_ma20:
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data["MA20"],
-            line=dict(color="orange", width=2),
-            name="MA20"
-        ))
-
-    if show_ma50:
-        fig.add_trace(go.Scatter(
-            x=data.index,
-            y=data["MA50"],
-            line=dict(color="blue", width=2),
-            name="MA50"
-        ))
-
-    fig.update_layout(
-        title=f"{ticker} – Prisdiagram",
-        xaxis_title="Datum",
-        yaxis_title="Pris",
-        height=600,
-        xaxis_rangeslider_visible=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ---------------------------
-    # Volume chart
-    # ---------------------------
-    vol_fig = go.Figure()
-
-    vol_fig.add_trace(go.Bar(
-        x=data.index,
-        y=data["Volume"],
-        name="Volym"
-    ))
-
-    vol_fig.update_layout(
-        title="Handelsvolym",
-        height=300
-    )
-
-    st.plotly_chart(vol_fig, use_container_width=True)
-
-    # ---------------------------
-    # Data table
-    # ---------------------------
-    with st.expander("Visa rådata"):
-        st.dataframe(data.tail(50))
+# Stats
+st.subheader("Stock Statistics")
+st.write(data.describe())
