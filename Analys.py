@@ -1,4 +1,4 @@
-pip install yfinance
+pip install -i https://pypi.anaconda.org/ranaroussi/simple finance
 import streamlit as st
 import yfinance as yf
 import pandas as pd
